@@ -23,8 +23,8 @@ class communityHandler {
             community.owner = req.user.id;
 
             await community.save();
-            
-            let role = await Role.findOne({name:'Community Admin'})
+
+            let role = await Role.findOne({ name: 'Community Admin' })
             let member = new Member();
             member.community = community.id;
             member.user = req.user.id;
@@ -47,12 +47,12 @@ class communityHandler {
 
     async getAll(req, res) {
         try {
-            let page = req.query.page ? req.query.page : 1 ;
-            let perPage = req.query.perPage ? req.query.perPage : 10 ;
-            let offset = page > 1 ? ( ( page - 1 ) * perPage ) : 0
+            let page = req.query.page ? req.query.page : 1;
+            let perPage = req.query.perPage ? req.query.perPage : 10;
+            let offset = page > 1 ? ((page - 1) * perPage) : 0
 
             let total = await Community.find().count();
-            let pages = 1 + Math.floor(total/perPage);
+            let pages = 1 + Math.floor(total / perPage);
 
             let community = await Community.aggregate([
                 {
@@ -60,7 +60,7 @@ class communityHandler {
                         from: "users",
                         localField: "owner",
                         foreignField: "_id",
-                        pipeline:[{$project:{_id:1,name:1 }}],
+                        pipeline: [{ $project: { _id: 1, name: 1 } }],
                         as: "owner"
                     }
                 },
@@ -70,8 +70,8 @@ class communityHandler {
 
                     }
                 }
-            ]).skip( offset ).limit( perPage );
-            
+            ]).skip(offset).limit(perPage);
+
             res.status(200).json({
                 status: true,
                 content: {
@@ -93,39 +93,51 @@ class communityHandler {
 
     async getAllMembers(req, res) {
         try {
+            let page = req.query.page ? req.query.page : 1;
+            let perPage = req.query.perPage ? req.query.perPage : 10;
+            let offset = page > 1 ? ((page - 1) * perPage) : 0
+
+            let total = await Member.find().count();
+
+            let pages = 1 + Math.floor(total / perPage);
+
             let member = await Member.aggregate([
                 {
                     $lookup: {
                         from: "roles",
                         localField: "role",
                         foreignField: "_id",
-                        pipeline:[{$project:{_id:1,name:1 }}],
+                        pipeline: [{ $project: { _id: 1, name: 1 } }],
                         as: "role"
-                    },
+                    }
+
+                },
+                {
                     $lookup: {
                         from: "users",
                         localField: "user",
                         foreignField: "_id",
-                        pipeline:[{$project:{_id:1,name:1 }}],
+                        pipeline: [{ $project: { _id: 1, name: 1 } }],
                         as: "user"
                     }
                 },
                 {
                     $set: {
                         role: { $first: "$role" },
-                        user:{ $first: "$user" }
+                        user: { $first: "$user" }
 
                     }
                 }
-            ])
+            ]).skip(offset).limit(perPage);
+
             res.status(200).json({
                 status: true,
                 content: {
-                    // meta: {
-                    //     total: total,
-                    //     pages: pages,
-                    //     page: Number(page)
-                    // },
+                    meta: {
+                        total: total,
+                        pages: pages,
+                        page: Number(page)
+                    },
                     data: member
                 }
             });
@@ -139,14 +151,14 @@ class communityHandler {
 
     async getMyOwnedCommunity(req, res) {
         try {
-            let page = req.query.page ? req.query.page : 1 ;
-            let perPage = req.query.perPage ? req.query.perPage : 10 ;
-            let offset = page > 1 ? ( ( page - 1 ) * perPage ) : 0
+            let page = req.query.page ? req.query.page : 1;
+            let perPage = req.query.perPage ? req.query.perPage : 10;
+            let offset = page > 1 ? ((page - 1) * perPage) : 0
 
             let total = await Community.find().count();
-            let pages = 1 + Math.floor(total/perPage);
+            let pages = 1 + Math.floor(total / perPage);
 
-            let community = await Community.find({owner:req.user.id}).skip( offset ).limit( perPage );
+            let community = await Community.find({ owner: req.user.id }).skip(offset).limit(perPage);
             res.status(200).json({
                 status: true,
                 content: {
@@ -168,7 +180,29 @@ class communityHandler {
 
     async getMyJoinedCommunity(req, res) {
         try {
-            let community = await Member.find({user:req.user.id});
+            
+            let member = await Member.find({user: req.user.id}).select({'_id':0,'community':1}).forEach(function(document) {output.push(document.community) })
+            console.log(member);
+            let community = await Community.aggregate([
+                {
+                    $match:{_id:member}
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "owner",
+                        foreignField: "_id",
+                        pipeline:[{$project:{_id:1,name:1 }}],
+                        as: "owner"
+                    }
+                },
+                {
+                    $set: {
+                        owner: { $first: "$owner" }
+
+                    }
+                }
+            ])
 
             res.status(200).json({
                 status: true,
